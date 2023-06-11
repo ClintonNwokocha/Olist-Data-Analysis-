@@ -790,28 +790,39 @@ ORDER BY frequency DESC;
 --lowest rating), indicating there may be some products or areas of service that could be improved.
 
 --9. What is the average order cancellation rate on Olist, and how does this impact seller performance?
-SELECT COUNT(order_id)
-FROM orders
-WHERE order_status = 'canceled';
-
-
 SELECT 
     ROUND((CAST(SUM(CASE WHEN o.order_status = 'canceled' THEN 1 ELSE 0 END) AS FLOAT) 
 	 / COUNT(*) * 100):: NUMERIC, 2) AS avg_cancellation_rate
 FROM orders o;
 
-SELECT DISTINCT s.seller_id,
-	o.order_status,
-	ROUND((CAST(SUM(CASE WHEN o.order_status = 'canceled' THEN 1 ELSE 0 END) AS FLOAT) 
-	 / COUNT(*) * 100):: NUMERIC, 2) AS avg_cancellation_rate,
-	 SUM(p.payment_value) AS Sales,
-	 COUNT(o.order_id)
-FROM sellers s
-JOIN items i ON i.seller_id = s.seller_id
-JOIN orders o ON o.order_id = i.order_id
-JOIN payments p ON p.order_id = o.order_id
-GROUP BY 1,2
-ORDER BY 2 DESC;
+
+-- Calculate average sales for sellers who have had an order cancelled
+SELECT 'Sellers with cancelled orders' AS seller_type, AVG(seller_orders) AS average_seller_orders
+FROM (
+    SELECT s.seller_id, COUNT(DISTINCT o.order_id) AS seller_orders
+    FROM orders o
+    INNER JOIN items i ON o.order_id = i.order_id
+    INNER JOIN sellers s ON i.seller_id = s.seller_id
+    WHERE o.order_status = 'canceled'
+    GROUP BY s.seller_id
+) subquery
+UNION ALL
+-- Calculate average sales for all sellers
+SELECT 'All sellers' AS seller_type, AVG(seller_orders) AS average_seller_orders
+FROM (
+    SELECT s.seller_id, COUNT(DISTINCT o.order_id) AS seller_orders
+    FROM orders o
+    INNER JOIN items i ON o.order_id = i.order_id
+    INNER JOIN sellers s ON i.seller_id = s.seller_id
+    GROUP BY s.seller_id
+) subquery;
+
+-- The average order cancellation rate on Olist is 0.63%. This is a relatively low rate, suggesting 
+--that the majority of orders placed on Olist are successfully completed.
+
+-- Sellers who have had an order cancelled average about 1.4 orders, while the average for all 
+--sellers is about 32.3 orders. This suggests a strong negative impact of order cancellations on 
+--seller performance.
 
 
 -- What are the top-selling products on Olist, and how have their sales trends changed over time
