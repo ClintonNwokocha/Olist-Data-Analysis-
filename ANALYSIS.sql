@@ -825,66 +825,47 @@ FROM (
 --seller performance.
 
 
--- What are the top-selling products on Olist, and how have their sales trends changed over time
-
-SELECT EXTRACT(YEAR FROM purchase_date) AS year,
-	pr.product_category_name AS name,
-	COUNT(o.order_id) AS frequency
-FROM products pr
-JOIN items i ON i.product_id = pr.product_id
-JOIN orders o ON o.order_id = i.order_id
-WHERE o.order_status <> 'canceled'
-GROUP BY year, name
-ORDER BY year ASC
-LIMIT 10;
-
-SELECT p.product_category_name, 
-    ROUND(SUM(op.payment_value):: NUMERIC, 2) AS total_sales_generated, 
-    COUNT(DISTINCT oi.order_id) AS num_orders, 
-    EXTRACT(YEAR FROM o.purchase_date) AS order_year, 
-    EXTRACT(QUARTER FROM o.purchase_date) AS order_quarter
-FROM items oi 
-    INNER JOIN products p ON oi.product_id = p.product_id
-    INNER JOIN orders o ON oi.order_id = o.order_id
-    INNER JOIN payments op ON oi.order_id = op.order_id
-GROUP BY p.product_category_name, 
-    EXTRACT(YEAR FROM o.purchase_date), 
-    EXTRACT(QUARTER FROM o.purchase_date) 
-ORDER BY total_sales_generated DESC;
+--10. What are the top-selling products on Olist, and how have their sales trends changed over time
 
 WITH product_sales AS (
-    SELECT 
-        p.product_category_name, 
-        ROUND(SUM(op.payment_value):: NUMERIC, 2) AS total_sales_generated, 
-        COUNT(DISTINCT oi.order_id) AS num_orders, 
-        EXTRACT(YEAR FROM o.purchase_date) AS order_year, 
-        EXTRACT(QUARTER FROM o.purchase_date) AS order_quarter,
-        ROW_NUMBER() OVER (
-            PARTITION BY EXTRACT(YEAR FROM o.purchase_date), p.product_category_name
-            ORDER BY ROUND(SUM(op.payment_value):: NUMERIC, 2) DESC
-        ) AS rn
-    FROM 
-        items oi 
-        INNER JOIN products p ON oi.product_id = p.product_id
-        INNER JOIN orders o ON oi.order_id = o.order_id
-        INNER JOIN payments op ON oi.order_id = op.order_id
-    GROUP BY 
-        p.product_category_name, 
-        EXTRACT(YEAR FROM o.purchase_date), 
-        EXTRACT(QUARTER FROM o.purchase_date)
+    SELECT pr.product_category_name AS name,
+           EXTRACT(YEAR FROM o.purchase_date) AS year,
+           COUNT(o.order_id) AS sales
+    FROM products pr
+    JOIN items i ON pr.product_id = i.product_id
+    JOIN orders o ON o.order_id = i.order_id
+    GROUP BY name, year
+),
+
+top_products AS (
+    SELECT name, SUM(sales) AS total_sales,
+           RANK() OVER (ORDER BY SUM(sales) DESC) AS rank
+    FROM product_sales
+    GROUP BY name
+    LIMIT 10
 )
-SELECT 
-    product_category_name,
-    total_sales_generated,
-    num_orders,
-    order_year,
-    order_quarter
-FROM 
-    product_sales
-WHERE 
-    rn <= 10
-ORDER BY 
-    order_year, total_sales_generated DESC;
+
+SELECT ps.name, ps.year, ps.sales
+FROM product_sales ps
+JOIN top_products tp ON ps.name = tp.name
+ORDER BY tp.rank, ps.year;
+
+--The top-selling product categories over the years include "bed_bath_table", 
+-- "health_beauty", "sports_leisure", "furniture_decor", and "computers_accessories".
+
+--All of these categories show a year-over-year growth from 2016 to 2017, 
+--and most of them also show growth from 2017 to 2018. This indicates a generally increasing demand 
+--for these products over the years.
+
+-- The "bed_bath_table" category had the highest sales in 2018, while the "health_beauty" category 
+-- had the second highest.
+
+-- However, some categories such as "telephony" and "garden_tools" seem to have stagnant or 
+-- declining sales from 2017 to 2018. This could indicate a decrease in demand or increased 
+-- competition in these categories.
+
+-- Some categories like "watches_gifts" and "auto" started with relatively lower sales in 
+-- 2016 but showed significant growth in the following years.
 
 
 	
